@@ -274,6 +274,19 @@ Potential future work:
 
 These are future ideas, not part of `1.0`.
 
-## Publishing Notes
+## Building from Source
 
-For release steps, see [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+To build the `.exe` from source:
+
+```bash
+git clone https://github.com/yourusername/eq-creds.git
+cd eq-creds
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m pytest tests/  # Optional: run test suite (27 tests)
+python -m pyinstaller build.spec
+# Output: dist/EQCreds.exe
+```
+
+For v1.0.0 release details and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
