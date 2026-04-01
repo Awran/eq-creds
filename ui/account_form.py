@@ -164,7 +164,7 @@ class AccountForm(QDialog):
         pwd_hl.setContentsMargins(0, 0, 0, 0)
         pwd_hl.setSpacing(4)
         self._show_pwd_btn = QPushButton("Show")
-        self._show_pwd_btn.setFixedWidth(50)
+        self._show_pwd_btn.setFixedWidth(65)
         self._show_pwd_btn.setCheckable(True)
         self._show_pwd_btn.toggled.connect(self._toggle_password_visibility)
         pwd_hl.addWidget(self._password_edit)
