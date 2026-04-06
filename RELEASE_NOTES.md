@@ -1,3 +1,22 @@
+# EQ-Creds v1.0.1 Release Notes
+
+## 🔧 Patch — Bug Fixes & Performance
+
+### Bug Fixes
+- **Memory safety**: `unlock()` now zeros the previous session key bytearray before replacing it; `change_password()` no longer calls `unlock()` internally, closing a key-orphaning code path.
+- **Tag save atomicity**: `set_account_tags()` previously opened nested transactions that committed mid-loop; all tag operations now execute in a single atomic transaction.
+
+### Performance
+- `list_accounts()` now uses two batch queries for characters and tags regardless of vault size, replacing an O(N) per-account query loop.
+- `search()` returns full account rows directly, eliminating a redundant per-account `get_account_raw()` round-trip.
+
+### Internals
+- `uuid4` and `hmac` imports moved to module level.
+- Duplicate SQLite PRAGMAs removed from DDL (already set in connection factory).
+- Build-only dependencies (`Pillow`, `pyinstaller`) moved to `requirements-build.txt`.
+
+---
+
 # EQ-Creds v1.0.0 Release Notes
 
 ## 🎉 Initial Release

@@ -17,6 +17,7 @@ from typing import List, Optional
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -217,7 +218,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Load Error", str(exc))
             return
         form = AccountForm(self._vault, account=account, parent=self)
-        form.saved.connect(lambda acc: self._on_account_saved(acc))
+        form.saved.connect(self._on_account_saved)
         form.exec()
 
     def _on_account_saved(self, account: Account) -> None:
@@ -237,7 +238,6 @@ class MainWindow(QMainWindow):
         self._vault.lock()
         self.close()
         # main.py will detect the locked state and show unlock window again
-        from PySide6.QtWidgets import QApplication
         QApplication.instance().show_unlock_window()  # type: ignore[attr-defined]
 
     def _on_settings(self) -> None:

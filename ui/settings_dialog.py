@@ -6,8 +6,8 @@ V1 scope: change master password (re-key operation).
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,

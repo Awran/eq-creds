@@ -276,7 +276,6 @@ class AccountForm(QDialog):
         btn_box.accepted.connect(self._on_save)
         btn_box.rejected.connect(self.reject)
         outer.addWidget(btn_box)
-        outer_margins = btn_box.contentsMargins()
         btn_box.setContentsMargins(24, 8, 24, 12)
 
     # ------------------------------------------------------------------

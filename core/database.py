@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
+from uuid import uuid4
 
 from .models import Account, Character, Tag, VaultMeta
 
@@ -26,9 +27,6 @@ from .models import Account, Character, Tag, VaultMeta
 _SCHEMA_VERSION = 1
 
 _DDL = """
-PRAGMA foreign_keys = ON;
-PRAGMA journal_mode = DELETE;
-
 CREATE TABLE IF NOT EXISTS vault_meta (
     id                INTEGER PRIMARY KEY CHECK (id = 1),
     kdf_salt          BLOB    NOT NULL,
@@ -334,6 +332,29 @@ class Database:
             for r in rows
         ]
 
+    def get_characters_for_accounts(self, account_ids: List[str]) -> dict:
+        """Return {account_id: [Character, ...]} for a list of account ids."""
+        if not account_ids:
+            return {}
+        placeholders = ",".join("?" * len(account_ids))
+        rows = self._conn.execute(
+            f"SELECT * FROM characters WHERE account_id IN ({placeholders})"
+            " ORDER BY name COLLATE NOCASE",
+            account_ids,
+        ).fetchall()
+        result: dict = {aid: [] for aid in account_ids}
+        for r in rows:
+            result[r["account_id"]].append(Character(
+                id=r["id"],
+                account_id=r["account_id"],
+                name=r["name"],
+                char_class=r["char_class"],
+                level=r["level"],
+                notes=r["notes"],
+                created_at=r["created_at"],
+            ))
+        return result
+
     # ------------------------------------------------------------------
     # Tags
     # ------------------------------------------------------------------
@@ -345,7 +366,6 @@ class Database:
         ).fetchone()
         if row:
             return row["id"]
-        from uuid import uuid4
         tag_id = str(uuid4())
         with _tx(self._conn) as cur:
             cur.execute("INSERT INTO tags (id, name) VALUES (?,?)", (tag_id, name))
@@ -360,10 +380,16 @@ class Database:
         with _tx(self._conn) as cur:
             cur.execute("DELETE FROM account_tags WHERE account_id = ?", (account_id,))
             for name in tag_names:
-                tag_id = self.get_or_create_tag(name)
+                cur.execute(
+                    "INSERT OR IGNORE INTO tags (id, name) VALUES (?,?)",
+                    (str(uuid4()), name),
+                )
+                row = cur.execute(
+                    "SELECT id FROM tags WHERE name = ? COLLATE NOCASE", (name,)
+                ).fetchone()
                 cur.execute(
                     "INSERT OR IGNORE INTO account_tags (account_id, tag_id) VALUES (?,?)",
-                    (account_id, tag_id),
+                    (account_id, row["id"]),
                 )
 
     def get_account_tags(self, account_id: str) -> List[str]:
@@ -401,19 +427,21 @@ class Database:
     # Search
     # ------------------------------------------------------------------
 
-    def search(self, query: str) -> List[str]:
+    def search(self, query: str) -> List[sqlite3.Row]:
         """
-        Return account ids matching the query against plaintext fields.
+        Return account rows matching the query against plaintext fields.
         Searches: label, owner, shared_by, character names, tag names.
-        Returns account ids ordered by label.
+        Returns rows ordered by label.
         """
         if not query.strip():
-            return [r["id"] for r in self.list_accounts_for_search()]
+            return self.list_accounts_for_search()
 
         pattern = f"%{query.strip()}%"
-        rows = self._conn.execute(
+        return self._conn.execute(
             """
-            SELECT DISTINCT a.id, a.label FROM accounts a
+            SELECT DISTINCT a.id, a.label, a.owner, a.shared_by, a.status,
+                   a.role_flag, a.rotate_flag, a.notes, a.created_at, a.updated_at
+            FROM accounts a
             LEFT JOIN characters c ON c.account_id = a.id
             LEFT JOIN account_tags at ON at.account_id = a.id
             LEFT JOIN tags t ON t.id = at.tag_id
@@ -427,7 +455,6 @@ class Database:
             """,
             (pattern, pattern, pattern, pattern, pattern),
         ).fetchall()
-        return [r["id"] for r in rows]
 
     # ------------------------------------------------------------------
     # Re-key (master password change)

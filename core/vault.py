@@ -15,6 +15,7 @@ before being discarded, reducing the window of exposure in memory.
 
 from __future__ import annotations
 
+import hmac
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -106,6 +107,8 @@ class Vault:
                 except InvalidTag:
                     _zero(candidate_key)
                     raise WrongPasswordError("Incorrect master password.")
+        if self._key is not None:
+            _zero(self._key)
         self._key = candidate_key
 
     def lock(self) -> None:
@@ -188,33 +191,29 @@ class Vault:
         Characters and tags are populated for display.
         """
         self._require_key()
-        account_ids = self._db.search(query)
-        accounts = []
+        rows = self._db.search(query)
+        account_ids = [r["id"] for r in rows]
         tag_map = self._db.get_tags_for_accounts(account_ids)
-        for aid in account_ids:
-            raw = self._db.get_account_raw(aid)
-            if raw is None:
-                continue
-            characters = self._db.get_characters(aid)
-            accounts.append(
-                Account(
-                    id=raw["id"],
-                    label=raw["label"],
-                    username=None,
-                    password=None,
-                    owner=raw["owner"],
-                    shared_by=raw["shared_by"],
-                    status=raw["status"],
-                    role_flag=raw["role_flag"],
-                    rotate_flag=raw["rotate_flag"],
-                    notes=raw["notes"],
-                    created_at=raw["created_at"],
-                    updated_at=raw["updated_at"],
-                    characters=characters,
-                    tags=tag_map.get(aid, []),
-                )
+        char_map = self._db.get_characters_for_accounts(account_ids)
+        return [
+            Account(
+                id=raw["id"],
+                label=raw["label"],
+                username=None,
+                password=None,
+                owner=raw["owner"],
+                shared_by=raw["shared_by"],
+                status=raw["status"],
+                role_flag=raw["role_flag"],
+                rotate_flag=raw["rotate_flag"],
+                notes=raw["notes"],
+                created_at=raw["created_at"],
+                updated_at=raw["updated_at"],
+                characters=char_map.get(raw["id"], []),
+                tags=tag_map.get(raw["id"], []),
             )
-        return accounts
+            for raw in rows
+        ]
 
     def all_tag_names(self) -> List[str]:
         self._require_key()
@@ -230,10 +229,18 @@ class Vault:
         re-encrypt all accounts, update vault_meta — all in one atomic tx.
         """
         key = self._require_key()
-        # Double-check old password matches current key
-        self.unlock(old_password)  # raises WrongPasswordError if wrong
-
         meta = self._db.read_vault_meta()
+        # Verify old password by re-deriving and comparing (constant-time)
+        old_key_bytes = derive_key(
+            old_password,
+            meta.kdf_salt,
+            meta.kdf_time_cost,
+            meta.kdf_memory_cost,
+            meta.kdf_parallelism,
+        )
+        if not hmac.compare_digest(old_key_bytes, key):
+            raise WrongPasswordError("Incorrect master password.")
+
         new_salt_ = new_salt()
         new_meta = VaultMeta(
             kdf_salt=new_salt_,

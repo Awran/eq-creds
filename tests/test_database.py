@@ -178,7 +178,7 @@ def test_search_by_character_name(db, key):
         Character(account_id=account.id, name="Lahrind"),
     ])
     results = db.search("Lahrind")
-    assert account.id in results
+    assert account.id in [r["id"] for r in results]
 
 
 def test_search_by_tag(db, key):
@@ -186,7 +186,7 @@ def test_search_by_tag(db, key):
     db.insert_account(account, *_enc(key, account.id))
     db.set_account_tags(account.id, ["raidleader"])
     results = db.search("raidleader")
-    assert account.id in results
+    assert account.id in [r["id"] for r in results]
 
 
 def test_search_empty_returns_all(db, key):
