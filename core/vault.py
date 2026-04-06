@@ -29,19 +29,22 @@ from .crypto import (
     new_salt,
 )
 from .database import Database
+from .errors import VaultLockedError, VaultNotInitializedError, WrongPasswordError
 from .models import Account, Character, VaultMeta
+from .export_import import (
+    ImportPreview,
+    build_import_preview,
+    decode_bundle,
+    encode_bundle,
+)
 
-
-class WrongPasswordError(Exception):
-    """Raised when the supplied master password does not decrypt the vault."""
-
-
-class VaultNotInitializedError(Exception):
-    """Raised when trying to unlock a vault that has never been created."""
-
-
-class VaultLockedError(Exception):
-    """Raised when an operation requires an unlocked vault."""
+# Re-export for callers that import exceptions from this module
+__all__ = [
+    "Vault",
+    "WrongPasswordError",
+    "VaultNotInitializedError",
+    "VaultLockedError",
+]
 
 
 class Vault:
@@ -218,6 +221,133 @@ class Vault:
     def all_tag_names(self) -> List[str]:
         self._require_key()
         return [t.name for t in self._db.all_tags()]
+
+    # ------------------------------------------------------------------
+    # Export / Import
+    # ------------------------------------------------------------------
+
+    def export_accounts(self, account_ids: List[str], export_password: str) -> bytes:
+        """Decrypt the selected accounts and encode them into an .eqcx bundle."""
+        key = self._require_key()
+        accounts = []
+        for aid in account_ids:
+            raw = self._db.get_account_raw(aid)
+            if raw is None:
+                continue
+            aad = account_aad(aid)
+            username = ""
+            password = ""
+            if raw["username_enc"]:
+                username = decrypt_field(
+                    key, bytes(raw["username_enc"]), bytes(raw["username_nonce"]), aad
+                )
+            if raw["password_enc"]:
+                password = decrypt_field(
+                    key, bytes(raw["password_enc"]), bytes(raw["password_nonce"]), aad
+                )
+            characters = self._db.get_characters(aid)
+            tags = self._db.get_account_tags(aid)
+            accounts.append(
+                Account(
+                    id=raw["id"],
+                    label=raw["label"],
+                    username=username,
+                    password=password,
+                    owner=raw["owner"],
+                    shared_by=raw["shared_by"],
+                    status=raw["status"],
+                    role_flag=raw["role_flag"],
+                    rotate_flag=raw["rotate_flag"],
+                    notes=raw["notes"],
+                    created_at=raw["created_at"],
+                    updated_at=raw["updated_at"],
+                    characters=characters,
+                    tags=tags,
+                )
+            )
+        return encode_bundle(accounts, export_password)
+
+    def preview_import(self, data: bytes, export_password: str) -> ImportPreview:
+        """
+        Decode an .eqcx bundle and compare it against the current vault.
+
+        Returns an ImportPreview with clean (no conflict) and conflict lists.
+        Does not write anything to the database.
+        """
+        key = self._require_key()
+        incoming = decode_bundle(data, export_password)  # raises on bad pw/file
+
+        all_rows = self._db.list_accounts_for_search()
+        existing: List[Account] = []
+        for row in all_rows:
+            aid = row["id"]
+            raw = self._db.get_account_raw(aid)
+            aad = account_aad(aid)
+            username = ""
+            if raw and raw["username_enc"]:
+                username = decrypt_field(
+                    key, bytes(raw["username_enc"]), bytes(raw["username_nonce"]), aad
+                )
+            existing.append(
+                Account(
+                    id=row["id"],
+                    label=row["label"],
+                    username=username,
+                    owner=row["owner"],
+                    shared_by=row["shared_by"],
+                    status=row["status"],
+                    role_flag=row["role_flag"],
+                    rotate_flag=row["rotate_flag"],
+                    notes=row["notes"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+            )
+
+        return build_import_preview(incoming, existing)
+
+    def apply_import(self, preview: ImportPreview) -> int:
+        """
+        Write all clean accounts and apply conflict resolutions to the vault.
+
+        - MERGE: replace credentials/metadata on the existing row (keeps id + created_at)
+        - SKIP:  leave the existing account untouched
+
+        Returns the number of accounts actually written.
+        """
+        key = self._require_key()
+        written = 0
+
+        def _save(account: Account) -> None:
+            aad = account_aad(account.id)
+            u_enc, u_nonce = encrypt_field(key, account.username or "", aad)
+            p_enc, p_nonce = encrypt_field(key, account.password or "", aad)
+            raw = self._db.get_account_raw(account.id)
+            if raw is None:
+                self._db.insert_account(account, u_enc, u_nonce, p_enc, p_nonce)
+            else:
+                self._db.update_account(account, u_enc, u_nonce, p_enc, p_nonce)
+            self._db.upsert_characters(account.id, account.characters)
+            self._db.set_account_tags(account.id, account.tags)
+
+        for account in preview.clean:
+            _save(account)
+            written += 1
+
+        from .export_import import ConflictResolution
+        for record in preview.conflicts:
+            if record.resolution == ConflictResolution.MERGE:
+                # Keep the existing row's id and created_at; replace everything else
+                merged = record.imported.model_copy(
+                    update={
+                        "id": record.existing.id,
+                        "created_at": record.existing.created_at,
+                    }
+                )
+                _save(merged)
+                written += 1
+
+        return written
 
     # ------------------------------------------------------------------
     # Re-key (master password change)
