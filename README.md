@@ -28,11 +28,13 @@ This is not an enterprise password manager. It is a practical local vault for a 
 - Adds notes and tags for quick retrieval
 - Provides fast search by account, character, owner, and tags
 - Masks passwords by default with explicit reveal on demand
+- Exports accounts to an encrypted `.eqcx` bundle protected by a separate password
+- Imports `.eqcx` bundles with a full preview and per-account conflict resolution
 - Runs as a Windows executable without requiring Python to be installed
 
 ## Current Version
 
-Version: `1.0`
+Version: `1.1.0`
 
 ## Core Features
 
@@ -41,6 +43,8 @@ Version: `1.0`
 - Character-aware account records
 - Search-first layout
 - Light and dark themes
+- Secure export to encrypted `.eqcx` bundles with a separate export password
+- Guided import with conflict detection (Merge or Skip per account)
 - Windows executable packaging via PyInstaller
 
 ## Safe Product Boundary
@@ -122,6 +126,27 @@ The main search box matches:
 - Username is shown directly
 - Password is masked by default
 - Password can be revealed explicitly when needed
+
+### Export Accounts
+
+Use the **⬆ Export** toolbar button to create an encrypted `.eqcx` backup:
+
+1. Select the accounts to include (Select All / Deselect All available).
+2. Set an export password — independent of the vault master password.
+3. Choose a save path; defaults to `eqcreds-export-YYYY-MM-DD.eqcx`.
+
+The bundle is protected with AES-256-GCM using a key derived from the export password. It cannot be opened without that password.
+
+### Import Accounts
+
+Use the **⬇ Import** toolbar button to load accounts from a `.eqcx` file:
+
+1. Browse to the `.eqcx` file and enter its export password.
+2. Click **Preview** — a table shows every account in the bundle with its label, username, and character count.
+   - Accounts that don't exist in the vault are marked **New**.
+   - Accounts that match an existing entry show a **Skip / Merge** selector.
+3. Optionally use **Merge All** or **Skip All** to bulk-set conflict resolution.
+4. Click **Import** to apply.
 
 ## Screenshots
 

@@ -1,3 +1,34 @@
+# EQ-Creds v1.1.0 Release Notes
+
+## ✨ New Feature — Secure Export / Import
+
+### Export
+- New **⬆ Export** toolbar button opens the Export Accounts dialog.
+- Select any subset of accounts via a checkable list (Select All / Deselect All).
+- Set a dedicated export password — completely independent of the vault master password.
+- Saves an encrypted `.eqcx` bundle; default filename is `eqcreds-export-YYYY-MM-DD.eqcx`.
+
+### Import
+- New **⬇ Import** toolbar button opens the Import Accounts dialog.
+- Browse for a `.eqcx` file and enter its export password, then click **Preview**.
+- A full-detail table shows every account in the bundle: label, username, character count, and action.
+  - Clean accounts (no conflict) are marked **New**.
+  - Conflicting accounts (matched by username, or label when username is blank) show a **Skip / Merge** selector.
+- **Merge All** and **Skip All** bulk buttons available when conflicts exist.
+- Merge keeps the existing account's ID and creation date while updating all other fields and characters.
+
+### .eqcx Format
+- Binary format: 5-byte magic + version header (used as AAD) + 16-byte Argon2id salt + 12-byte nonce + AES-256-GCM ciphertext.
+- Tampered or truncated files are rejected with an authenticated-encryption integrity failure.
+- No new runtime dependencies.
+
+### Internals
+- New `core/errors.py` module consolidates shared exception types (`WrongPasswordError`, `VaultNotInitializedError`, `VaultLockedError`) to eliminate a circular import.
+- New `core/export_import.py` module handles all bundle encoding/decoding and conflict detection.
+- 20 new unit tests; total test count: 47.
+
+---
+
 # EQ-Creds v1.0.1 Release Notes
 
 ## 🔧 Patch — Bug Fixes & Performance

@@ -89,6 +89,18 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        export_btn = QPushButton("⬆ Export")
+        export_btn.setToolTip("Export selected accounts to an encrypted .eqcx file")
+        export_btn.clicked.connect(self._on_export)
+        toolbar.addWidget(export_btn)
+
+        import_btn = QPushButton("⬇ Import")
+        import_btn.setToolTip("Import accounts from an encrypted .eqcx file")
+        import_btn.clicked.connect(self._on_import)
+        toolbar.addWidget(import_btn)
+
+        toolbar.addSeparator()
+
         lock_btn = QPushButton("🔒 Lock")
         lock_btn.clicked.connect(self._on_lock)
         toolbar.addWidget(lock_btn)
@@ -239,6 +251,25 @@ class MainWindow(QMainWindow):
         self.close()
         # main.py will detect the locked state and show unlock window again
         QApplication.instance().show_unlock_window()  # type: ignore[attr-defined]
+
+    def _on_export(self) -> None:
+        from ui.export_dialog import ExportDialog
+        dlg = ExportDialog(self._vault, parent=self)
+        dlg.exec()
+
+    def _on_import(self) -> None:
+        from ui.import_dialog import ImportDialog
+        dlg = ImportDialog(self._vault, parent=self)
+        dlg.imported.connect(self._on_import_complete)
+        dlg.exec()
+
+    def _on_import_complete(self, count: int) -> None:
+        query = self._search_edit.text().strip()
+        self._refresh_list(query)
+        self._detail.clear()
+        self._status_bar.showMessage(
+            f"Imported {count} account{'s' if count != 1 else ''}.", 4000
+        )
 
     def _on_settings(self) -> None:
         from ui.settings_dialog import SettingsDialog

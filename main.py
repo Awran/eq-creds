@@ -65,7 +65,7 @@ class EQCredsApp(QApplication):
         _set_windows_app_id()
         self.setOrganizationName("EQCreds")
         self.setApplicationName("EQ-Creds")
-        self.setApplicationVersion("1.0.1")
+        self.setApplicationVersion("1.1.0")
         icon_file = _icon_path()
         if icon_file is not None:
             self.setWindowIcon(QIcon(str(icon_file)))
