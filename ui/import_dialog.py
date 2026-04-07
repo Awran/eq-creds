@@ -8,11 +8,12 @@ Phase 1 — File + password:
   Password field
   "Preview…" button
 
-Phase 2 — Conflict resolution (replaces phase 1 content):
+Phase 2 — Preview + conflict resolution (replaces phase 1 content):
   Summary label ("N accounts to import, M conflicts found")
-  If conflicts exist:
-    QTableWidget with per-row Merge/Skip combo
-    "Merge All" / "Skip All" bulk buttons
+  QTableWidget of ALL accounts: Label, Username, Characters, Action
+    - Clean rows: Action = "New" (static)
+    - Conflict rows: Action = Skip/Merge QComboBox
+  If conflicts: "Merge All" / "Skip All" bulk buttons
   "Import" button
 
 Emits `imported` with the count of accounts written.
@@ -137,46 +138,41 @@ class ImportDialog(QDialog):
         self._summary_label.setWordWrap(True)
         layout.addWidget(self._summary_label)
 
-        self._conflict_frame = QWidget()
-        conflict_layout = QVBoxLayout(self._conflict_frame)
-        conflict_layout.setContentsMargins(0, 0, 0, 0)
-        conflict_layout.setSpacing(6)
+        self._preview_table = QTableWidget(0, 4)
+        self._preview_table.setHorizontalHeaderLabels(["Label", "Username", "Characters", "Action"])
+        self._preview_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        self._preview_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self._preview_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Fixed
+        )
+        self._preview_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Fixed
+        )
+        self._preview_table.setColumnWidth(2, 90)
+        self._preview_table.setColumnWidth(3, 100)
+        self._preview_table.verticalHeader().setVisible(False)
+        self._preview_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._preview_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._preview_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        layout.addWidget(self._preview_table, 1)
 
-        conflict_title = QLabel("Conflicts — choose how to resolve each:")
-        conflict_title.setStyleSheet("font-weight: bold;")
-        conflict_layout.addWidget(conflict_title)
-
-        bulk_row = QHBoxLayout()
+        self._bulk_frame = QWidget()
+        bulk_layout = QHBoxLayout(self._bulk_frame)
+        bulk_layout.setContentsMargins(0, 0, 0, 0)
         merge_all_btn = QPushButton("Merge All")
         merge_all_btn.clicked.connect(self._merge_all)
         skip_all_btn = QPushButton("Skip All")
         skip_all_btn.clicked.connect(self._skip_all)
-        bulk_row.addWidget(merge_all_btn)
-        bulk_row.addWidget(skip_all_btn)
-        bulk_row.addStretch()
-        conflict_layout.addLayout(bulk_row)
-
-        self._conflict_table = QTableWidget(0, 3)
-        self._conflict_table.setHorizontalHeaderLabels(["Label", "Username", "Action"])
-        self._conflict_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
-        )
-        self._conflict_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
-        self._conflict_table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeMode.Fixed
-        )
-        self._conflict_table.setColumnWidth(2, 90)
-        self._conflict_table.verticalHeader().setVisible(False)
-        self._conflict_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._conflict_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self._conflict_table.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        conflict_layout.addWidget(self._conflict_table, 1)
-
-        layout.addWidget(self._conflict_frame, 1)
+        bulk_layout.addWidget(merge_all_btn)
+        bulk_layout.addWidget(skip_all_btn)
+        bulk_layout.addStretch()
+        layout.addWidget(self._bulk_frame)
 
     # ------------------------------------------------------------------
     # Slots
@@ -207,8 +203,8 @@ class ImportDialog(QDialog):
         self._set_all_resolutions("Skip")
 
     def _set_all_resolutions(self, value: str) -> None:
-        for row in range(self._conflict_table.rowCount()):
-            combo = self._conflict_table.cellWidget(row, 2)
+        for row in range(self._preview_table.rowCount()):
+            combo = self._preview_table.cellWidget(row, 3)
             if isinstance(combo, QComboBox):
                 idx = combo.findText(value)
                 if idx >= 0:
@@ -264,7 +260,7 @@ class ImportDialog(QDialog):
         self._phase1_widget.hide()
         self._phase2_widget.show()
         self._action_btn.setText("Import")
-        self.setMinimumHeight(300)
+        self.setMinimumHeight(350)
 
         n_clean = len(preview.clean)
         n_conflict = len(preview.conflicts)
@@ -272,41 +268,59 @@ class ImportDialog(QDialog):
 
         if n_conflict == 0:
             self._summary_label.setText(
-                f"{total} account{'s' if total != 1 else ''} ready to import. No conflicts."
+                f"{total} account{'s' if total != 1 else ''} ready to import — no conflicts."
             )
-            self._conflict_frame.hide()
         else:
             self._summary_label.setText(
                 f"{total} account{'s' if total != 1 else ''} to import — "
                 f"{n_conflict} conflict{'s' if n_conflict != 1 else ''} found."
             )
-            self._conflict_frame.show()
-            self._conflict_table.setRowCount(n_conflict)
-            for i, record in enumerate(preview.conflicts):
-                self._conflict_table.setItem(
-                    i, 0, QTableWidgetItem(record.imported.label)
-                )
-                self._conflict_table.setItem(
-                    i, 1, QTableWidgetItem(record.imported.username or "(blank)")
-                )
-                combo = QComboBox()
-                combo.addItem("Skip")
-                combo.addItem("Merge")
-                combo.setCurrentIndex(0)  # default: Skip
-                self._conflict_table.setCellWidget(i, 2, combo)
-                self._conflict_table.setRowHeight(i, 28)
 
-            visible = min(max(n_conflict, 2), 8)
-            header_h = self._conflict_table.horizontalHeader().height() or 26
-            self._conflict_table.setMinimumHeight(header_h + visible * 30 + 8)
+        # Populate unified table: clean accounts first, then conflict accounts
+        self._preview_table.setRowCount(total)
+
+        for i, acct in enumerate(preview.clean):
+            self._preview_table.setItem(i, 0, QTableWidgetItem(acct.label))
+            self._preview_table.setItem(i, 1, QTableWidgetItem(acct.username or "(blank)"))
+            chars_item = QTableWidgetItem(str(len(acct.characters)))
+            chars_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._preview_table.setItem(i, 2, chars_item)
+            action_item = QTableWidgetItem("New")
+            action_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._preview_table.setItem(i, 3, action_item)
+            self._preview_table.setRowHeight(i, 28)
+
+        for j, record in enumerate(preview.conflicts):
+            row = n_clean + j
+            self._preview_table.setItem(row, 0, QTableWidgetItem(record.imported.label))
+            self._preview_table.setItem(row, 1, QTableWidgetItem(record.imported.username or "(blank)"))
+            chars_item = QTableWidgetItem(str(len(record.imported.characters)))
+            chars_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._preview_table.setItem(row, 2, chars_item)
+            combo = QComboBox()
+            combo.addItem("Skip")
+            combo.addItem("Merge")
+            combo.setCurrentIndex(0)  # default: Skip
+            self._preview_table.setCellWidget(row, 3, combo)
+            self._preview_table.setRowHeight(row, 28)
+
+        if n_conflict:
+            self._bulk_frame.show()
+        else:
+            self._bulk_frame.hide()
+
+        visible = min(max(total, 3), 12)
+        header_h = self._preview_table.horizontalHeader().height() or 26
+        self._preview_table.setMinimumHeight(header_h + visible * 30 + 8)
 
     def _do_import(self) -> None:
         if self._preview is None:
             return
 
-        # Apply per-row resolution choices to the preview
-        for i, record in enumerate(self._preview.conflicts):
-            combo = self._conflict_table.cellWidget(i, 2)
+        # Apply per-row resolution choices — conflict rows start after clean rows
+        n_clean = len(self._preview.clean)
+        for j, record in enumerate(self._preview.conflicts):
+            combo = self._preview_table.cellWidget(n_clean + j, 3)
             if isinstance(combo, QComboBox):
                 if combo.currentText() == "Merge":
                     record.resolution = ConflictResolution.MERGE
