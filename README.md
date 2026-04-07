@@ -318,4 +318,4 @@ python -m pyinstaller build.spec
 # Output: dist/EQCreds.exe
 ```
 
-For v1.0.0 release details and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
+For v1.1.0 release details and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
