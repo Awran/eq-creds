@@ -208,6 +208,10 @@ Sensitive credential fields are encrypted at rest. Search-oriented metadata such
 
 No. End users should download the packaged Windows executable from Releases.
 
+### Does it run on Linux or macOS?
+
+No prebuilt binary is provided. The source is pure Python + PySide6 and is otherwise portable, but the vault path is currently hardcoded to `%APPDATA%` (Windows only). Running from source on Linux or macOS requires changing the vault path in `main.py` to an appropriate platform directory (e.g. `~/.local/share/EQCreds` on Linux or `~/Library/Application Support/EQCreds` on macOS) before it will work.
+
 ### Can one account have multiple characters?
 
 Yes. One account can map to many characters, and the UI is built around that.
