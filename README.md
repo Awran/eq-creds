@@ -85,7 +85,7 @@ Expected release asset:
 
 ## Installation
 
-No installer is required for `1.0`.
+No installer is required.
 
 1. Download `EQCreds.exe` from Releases.
 2. Run the executable.
@@ -286,10 +286,8 @@ If only a PNG is present, the build converts it to `assets/icon.ico` automatical
 
 ## Known Limitations
 
-- Local-only in `1.0`
-- No sync or multi-device sharing
-- No import pipeline yet
-- No audit trail yet
+- Local-only; no cloud sync or multi-device sharing
+- No audit trail
 - Optimized for Windows first
 
 ## Roadmap Direction
@@ -297,25 +295,9 @@ If only a PNG is present, the build converts it to `assets/icon.ico` automatical
 Potential future work:
 
 - controlled sharing between trusted users/devices
-- encrypted import/export
 - optional audit logging
 - optional sync
 
-These are future ideas, not part of `1.0`.
+These are future ideas, not committed to any release.
 
-## Building from Source
-
-To build the `.exe` from source:
-
-```bash
-git clone https://github.com/yourusername/eq-creds.git
-cd eq-creds
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python -m pytest tests/  # Optional: run test suite (27 tests)
-python -m pyinstaller build.spec
-# Output: dist/EQCreds.exe
-```
-
-For v1.1.0 release details and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
+For release history and changelog, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
